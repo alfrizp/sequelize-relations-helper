@@ -16,6 +16,19 @@ class AssociationHelperPlugin {
     }
     this.setup();
   }
+
+  checkOnMissingModel(model) {
+    if(!this._db.isDefined(model) 
+      && typeof this._opts.onMissingModel === 'function') {
+      this._opts.onMissingModel(model);
+    }
+  }
+
+  log(modelSrc, modelDst, type, opts, isCompleted) {
+    if(this._opts.debug) {
+      console.log(`[AssociationHelperPlugin] Set "${modelSrc}" ${type} "${modelDst}"` , isCompleted, opts);
+    }
+  }
   
   setup( ) {
     if( !this._models.size ) {
@@ -23,25 +36,33 @@ class AssociationHelperPlugin {
     }
     this._models.forEach( modelSrc  => {
       for( let def of modelSrc.options.relations ) {
-        if( !this._db.isDefined( def.target ) 
-          && typeof this._opts.onMissingModel === 'function' ) {
-          this._opts.onMissingModel( def.target );
-        }
+        this.checkOnMissingModel(def.target);
 
         if( !def._complete && this._db.isDefined( def.target ) ) {
           const modelDst = this._db.model(def.target);
-          const opts = def.options || def.opts || {};
+          let opts = def.options || def.opts || {};
 
           switch( def.type ) {
             case 'hasOne':
             case 'belongsTo':
             case 'hasMany':
-            case 'belongsToMany':
-              if( this._opts.debug ) {
-                console.log(`[AssociationHelperPlugin] Set "${modelSrc.name}" ${def.type} "${modelDst.name}"` , def._complete, opts );
-              }
-              def._complete = true;
+              this.log(modelSrc.name, modelDst.name, def.type, opts, def._complete);
+
+              def._complete = true;              
               modelSrc[def.type]( modelDst, Object.assign( {}, opts ) );
+              break;              
+            case 'belongsToMany':
+              let throughModel = typeof opts.through === 'string' ? opts.through : opts.through.model;
+
+              this.checkOnMissingModel(throughModel);
+
+              if(!def._complete && this._db.isDefined(throughModel)) {
+                this.log(modelSrc.name, modelDst.name, def.type, opts, def._complete);
+                
+                throughModel = this._db.model(throughModel);
+                def._complete = true;
+                modelSrc[def.type](modelDst, Object.assign({ through: throughModel }, opts));
+              }
               break;
           }
         }
