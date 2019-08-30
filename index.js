@@ -74,7 +74,7 @@ class AssociationHelperPlugin {
 
 module.exports = ( db, opts ) => {
   const plugin = new AssociationHelperPlugin( db, opts );
-  db.hook('afterDefine', ( Model ) => {
+  db.addHook('afterDefine', ( Model ) => {
     plugin.register( Model );
   });
 };
